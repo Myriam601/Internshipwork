@@ -1,0 +1,33 @@
+import scrapy
+from scrapy.crawler import CrawlerProcess
+from scrapy.utils.project import get_project_settings
+
+class SiteCrawlerSpider(scrapy.Spider):
+    name = "site_crawler"
+    allowed_domains = ["thefinancialsecrets.com"]  # Replace with your target domain
+    start_urls = [" https://thefinancialsecrets.com/"]  # Starting URL
+    visited_urls = set()  # Set to track unique URLs
+
+    def parse(self, response):
+        # Add the current URL to the set of visited URLs
+        self.visited_urls.add(response.url)
+
+        # Print the URL of the current page
+        print(f"Visited ({len(self.visited_urls)}): {response.url}")
+
+        # Extract all the links from the page and follow them
+        for href in response.css('a::attr(href)').extract():
+            full_url = response.urljoin(href)  # Convert to absolute URL
+
+            # Follow the link only if it is within the domain and not visited before
+            if self.allowed_domains[0] in full_url and full_url not in self.visited_urls:
+                yield scrapy.Request(full_url, callback=self.parse)
+
+    def closed(self, reason):
+        """This method is called when the spider finishes."""
+        print(f"\nTotal unique pages visited: {len(self.visited_urls)}")
+
+process = CrawlerProcess(get_project_settings())
+process.crawl(SiteCrawlerSpider)
+process.start()
+
