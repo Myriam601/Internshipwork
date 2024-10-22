@@ -1,0 +1,67 @@
+import os
+import requests
+from bs4 import BeautifulSoup
+
+def get_sitemaps_and_html(url):
+    if not url.endswith('/'):
+        url += '/'
+
+    robots_url = url + 'robots.txt'
+    
+    try:
+        # Fetch the sitemaps from the robots.txt file
+        robots_response = requests.get(robots_url)
+        robots_response.raise_for_status()
+        robots_txt = robots_response.text
+        
+        sitemaps = []
+        for line in robots_txt.splitlines():
+            if line.lower().startswith('sitemap:'):
+                sitemaps.append(line.split(':', 1)[1].strip())
+
+        if not sitemaps:
+            return "No sitemaps found in robots.txt"
+        
+        dir_name = 'scraped_pages'
+        os.makedirs(dir_name, exist_ok=True)
+        total_pages = 0
+        
+        # Function to fetch pages from a sitemap
+        def fetch_urls_from_sitemap(sitemap_url):
+            print(f"Fetching sitemaps: {sitemap_url}")
+            sitemap_response = requests.get(sitemap_url)
+            sitemap_response.raise_for_status()
+            soup = BeautifulSoup(sitemap_response.content, 'xml')
+            return [urls.text for urls in soup.find_all('loc')]
+        
+        for sitemap_url in sitemaps:
+            # Check if it's a sitemap index
+            urls = fetch_urls_from_sitemap(sitemap_url)
+
+        for url in urls:
+                # If the sitemap URL is an index, fetch its URLs
+            if url.endswith('sitemap.xml'):
+                # If it's a regular sitemap, fetch its URLs directly
+                page_urls = fetch_urls_from_sitemap(url)
+                for page_url in page_urls:
+                    page_response = requests.get(page_url)
+                    page_response.raise_for_status()
+                    page_content = page_response.text
+                    
+                    filename = os.path.join(dir_name, f'page_{total_pages+1}.txt')
+                    with open(filename, 'w', encoding='utf-8') as file:
+                       file.write(page_content)
+                        
+                    print(f"Saved: {filename}")
+                    total_pages += 1  # Increment the total count
+
+                print(f"Count of pages in this sitemap: {total_pages}")
+
+            print(f"\nTotal pages scraped: {total_pages}")
+        
+    except requests.RequestException as e:
+        return f"An error occurred: {e}"
+
+# Example usage
+website = input("Enter the website URL: ")
+get_sitemaps_and_html(website)
